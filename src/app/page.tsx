@@ -1,7 +1,7 @@
 'use client'; // Required for state and effects
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings } from '@/components/Settings';
+import { Settings } from '../../components/Settings';
 
 interface Message {
   sender: 'user' | 'ai';
