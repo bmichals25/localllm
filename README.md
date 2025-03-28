@@ -5,6 +5,7 @@ A macOS application for running a local Large Language Model with speech-to-text
 ## Features
 
 - Connect to locally running Ollama instance
+- Choose from any LLM model you have installed in Ollama
 - Chat with LLMs running on your Mac
 - Speech-to-Text input using the Web Speech API
 - Text-to-Speech output for AI responses
@@ -14,7 +15,7 @@ A macOS application for running a local Large Language Model with speech-to-text
 
 - [Ollama](https://ollama.com/) installed on your Mac
 - Node.js >= 20.0.0
-- A compatible LLM model (e.g., llama3.2) pulled in Ollama
+- At least one compatible LLM model pulled in Ollama
 
 ## Setup
 
@@ -34,8 +35,13 @@ A macOS application for running a local Large Language Model with speech-to-text
 This application provides a web UI that connects to a locally running Ollama instance. It sends user messages to Ollama's API and displays the responses.
 
 The application also includes:
-- Speech-to-Text: Click the microphone button to speak your message
-- Text-to-Speech: Toggle the TTS button to have the AI responses read aloud
+- **Settings Panel**: Click the gear icon to choose which LLM model to use
+- **Speech-to-Text**: Click the microphone button to speak your message
+- **Text-to-Speech**: Toggle the TTS button to have the AI responses read aloud
+
+## Model Selection
+
+Click the settings (gear) icon in the top-right to open the model selection panel. The app will automatically retrieve the list of available models from your Ollama instance. Select any model you have installed, and your preference will be saved for future sessions.
 
 ## Technologies Used
 
