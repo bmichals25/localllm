@@ -40,7 +40,19 @@ export function Settings({ isOpen, onClose, currentModel, onModelChange }: Setti
       }
       
       const data = await response.json();
-      setModels(data.models || []);
+      console.log('Ollama API response:', data); // For debugging
+      
+      // Handle the models array correctly based on the API response structure
+      if (data.models) {
+        setModels(data.models);
+      } else if (Array.isArray(data)) {
+        // If the response is a direct array
+        setModels(data);
+      } else {
+        // If we can't find a valid models structure
+        console.error('Unexpected API response structure:', data);
+        setModels([]);
+      }
     } catch (err) {
       console.error('Error fetching models:', err);
       setError('Failed to fetch available models. Make sure Ollama is running.');
@@ -90,8 +102,8 @@ export function Settings({ isOpen, onClose, currentModel, onModelChange }: Setti
           ) : (
             <div className="max-h-60 overflow-y-auto">
               <ul className="space-y-2">
-                {models.map((model) => (
-                  <li key={model.id}>
+                {models.map((model, index) => (
+                  <li key={model.name || `model-${index}`}>
                     <label className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
                       <input
                         type="radio"
