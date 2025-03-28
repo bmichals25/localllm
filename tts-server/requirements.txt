@@ -1,0 +1,7 @@
+fastapi==0.110.0
+uvicorn==0.30.0
+python-multipart==0.0.9
+git+https://github.com/senstella/csm-mlx.git
+audiofile
+audresample
+numpy

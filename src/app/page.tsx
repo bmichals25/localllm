@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Settings } from '../components/Settings';
+import { speak, isTTSServerReady } from '../services/tts';
 
 interface Message {
   sender: 'user' | 'ai';
@@ -72,6 +73,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentModel, setCurrentModel] = useState<string>('llama3.2'); // Default model
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [ttsServerStatus, setTtsServerStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
   // Load saved model preference from localStorage on component mount
@@ -86,6 +88,32 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('preferredModel', currentModel);
   }, [currentModel]);
+
+  // Check TTS server status on mount
+  useEffect(() => {
+    const checkTTSServer = async () => {
+      try {
+        const isReady = await isTTSServerReady();
+        setTtsServerStatus(isReady ? 'ready' : 'error');
+      } catch (error) {
+        console.error('Error checking TTS server status:', error);
+        setTtsServerStatus('error');
+      }
+    };
+    
+    checkTTSServer();
+    
+    // Poll for server status every 5 seconds if it's not ready
+    const interval = setInterval(async () => {
+      if (ttsServerStatus !== 'ready') {
+        checkTTSServer();
+      } else {
+        clearInterval(interval);
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [ttsServerStatus]);
 
   const handleModelChange = (model: string) => {
     setCurrentModel(model);
@@ -251,38 +279,65 @@ export default function Home() {
     }
   };
 
-  // Implement TTS (Text-to-Speech) functionality using Web Speech API
-  const speakText = (text: string) => {
+  // Update the speakText function to use the CSM-MLX TTS service
+  const speakText = async (text: string) => {
     if (!ttsEnabled) return;
     
-    // Check if browser supports speech synthesis
-    if ('speechSynthesis' in window) {
-      // Create a new utterance
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Optional: Configure voice, rate, pitch, etc.
-      // Get available voices
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Try to find a good quality voice - prefer female voice if available
-      const preferredVoice = voices.find(voice => 
-        voice.lang.includes('en-US') && voice.name.includes('Female')
-      ) || voices.find(voice => 
-        voice.lang.includes('en-US')
-      ) || voices[0];
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
+    // If TTS server is not ready, fallback to browser TTS
+    if (ttsServerStatus !== 'ready') {
+      // Fallback to browser's speech synthesis
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Get available voices
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Try to find a good quality voice - prefer female voice if available
+        const preferredVoice = voices.find(voice => 
+          voice.lang.includes('en-US') && voice.name.includes('Female')
+        ) || voices.find(voice => 
+          voice.lang.includes('en-US')
+        ) || voices[0];
+        
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+        
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        
+        window.speechSynthesis.speak(utterance);
+      } else {
+        console.warn('Browser does not support speech synthesis and TTS server is not available');
       }
+      return;
+    }
+    
+    try {
+      // Use CSM-MLX TTS service
+      // Get previous messages as context (optional - for better conversation flow)
+      const recentMessages = messages.slice(-4); // Last 4 messages for context
+      const context = recentMessages.map(msg => ({
+        text: msg.text,
+        speaker: msg.sender === 'user' ? 1 : 0, // Map sender to speaker ID
+      }));
       
-      // Set other properties
-      utterance.rate = 1.0; // Speech rate (0.1 to 10)
-      utterance.pitch = 1.0; // Pitch (0 to 2)
+      await speak({
+        text,
+        speaker: 0, // Use speaker 0 for AI responses
+        temperature: 0.8,
+        top_k: 50,
+        max_audio_length_ms: 30000, // Allow up to 30 seconds for longer responses
+        context
+      });
+    } catch (error) {
+      console.error('Error using CSM-MLX TTS:', error);
       
-      // Speak the text
-      window.speechSynthesis.speak(utterance);
-    } else {
-      console.warn('Browser does not support speech synthesis');
+      // Fallback to browser TTS if CSM-MLX fails
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
@@ -328,9 +383,13 @@ export default function Home() {
             <span className="text-gray-800 dark:text-white font-medium">{currentModel}</span>
           </div>
           
-          {/* TTS toggle */}
+          {/* TTS toggle with status indicator */}
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">TTS:</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              TTS: 
+              {ttsServerStatus === 'loading' && <span className="ml-1 text-yellow-500">⚡</span>}
+              {ttsServerStatus === 'error' && <span className="ml-1 text-red-500">⚠️</span>}
+            </span>
             <button
               onClick={() => setTtsEnabled(!ttsEnabled)}
               className={`px-3 py-1 rounded-md text-sm ${
@@ -338,6 +397,9 @@ export default function Home() {
                   ? 'bg-green-500 text-white'
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
               }`}
+              title={ttsServerStatus === 'ready' 
+                ? "Enable enhanced CSM-MLX TTS" 
+                : "Using browser TTS (CSM-MLX server not available)"}
             >
               {ttsEnabled ? 'On' : 'Off'}
             </button>
